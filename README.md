@@ -2,5 +2,5 @@
 Sample vert.x application
 
 # Deploy
-mvn clean package
-java -jar target/sample-vertx-api-1.0-SNAPSHOT-fat.jar
+1) mvn clean package
+2) java -jar target/sample-vertx-api-1.0-SNAPSHOT-fat.jar
