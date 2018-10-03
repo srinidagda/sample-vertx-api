@@ -11,7 +11,9 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.reactivestreams.ReactiveReadStream;
 import io.vertx.ext.web.Router;
 import reactor.core.publisher.Flux;
+import reactor.util.function.Tuple2;
 
+import java.time.Duration;
 import java.util.Date;
 import java.util.stream.Stream;
 
@@ -46,8 +48,10 @@ public class ApplicationVerticle  extends AbstractVerticle {
 	router.route(HttpMethod.GET, "/values").handler(routingContext -> {
 		LOG.info("Path is <{/values}>");
 		Flux<IdName> stream = Flux.fromStream(Stream.generate(() -> new IdName(System.currentTimeMillis(), new Date())));
+		Flux<Long> durationFlux = Flux.interval(Duration.ofSeconds(1));
+		Flux<IdName> zipFlux = Flux.zip(stream, durationFlux).map(Tuple2::getT1);
 		ReactiveReadStream<IdName> reactiveReadStream = ReactiveReadStream.readStream();
-		stream.subscribe(reactiveReadStream);
+		zipFlux.subscribe(reactiveReadStream);
 		HttpServerResponse httpServerResponse = routingContext.response();
 		reactiveReadStream.handler(data -> {
 			if(httpServerResponse.writeQueueFull()) {
