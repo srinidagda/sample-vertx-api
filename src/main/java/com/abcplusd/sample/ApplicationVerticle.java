@@ -4,11 +4,16 @@ import com.abcplusd.sample.model.IdName;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
+import io.vertx.ext.reactivestreams.ReactiveReadStream;
 import io.vertx.ext.web.Router;
+import reactor.core.publisher.Flux;
 
+import java.util.Date;
+import java.util.stream.Stream;
 
 public class ApplicationVerticle  extends AbstractVerticle {
 	private static final Logger LOG = LoggerFactory.getLogger(ApplicationVerticle.class);
@@ -16,8 +21,21 @@ public class ApplicationVerticle  extends AbstractVerticle {
 @Override
 	public void start(Future<Void> future) {
 	LOG.info("Function begins from here - {start}");
-	Router router = Router.router(vertx);
+	final Router router = Router.router(vertx);
 	
+	/*final JDBCClient jdbcClient = JDBCClient.createNonShared(vertx, new JsonObject()
+	.put("url", "jdbc:postgresql://localhost:5432/testdb")
+	.put("user", "test_admin")
+	.put("password", "test123")
+	.put("driver_class","org.postgresql.Driver"));
+	
+	jdbcClient.getConnection(res -> {
+		if(res.succeeded()) {
+			SQLConnection connection = res.result();
+		} else if (res.failed()){
+			res.cause();
+		}
+	});*/
 	router.route(HttpMethod.GET,"/welcome").handler(routingContext -> {
 		LOG.info("Path is <{/welcome}>");
 		routingContext.response()
@@ -27,11 +45,27 @@ public class ApplicationVerticle  extends AbstractVerticle {
 	
 	router.route(HttpMethod.GET, "/values").handler(routingContext -> {
 		LOG.info("Path is <{/values}>");
-		routingContext.response()
-			.putHeader("content-type", "application/json charset=utf-8")
-			.end(Json.encodePrettily(getIdName()));
-		}
-	);
+		Flux<IdName> stream = Flux.fromStream(Stream.generate(() -> new IdName(System.currentTimeMillis(), new Date())));
+		ReactiveReadStream<IdName> reactiveReadStream = ReactiveReadStream.readStream();
+		stream.subscribe(reactiveReadStream);
+		HttpServerResponse httpServerResponse = routingContext.response();
+		reactiveReadStream.handler(data -> {
+			if(httpServerResponse.writeQueueFull()) {
+				httpServerResponse.drainHandler((s) -> {
+					reactiveReadStream.resume();
+				});
+				reactiveReadStream.pause();
+				} else {
+				httpServerResponse.putHeader("content-type", "application/json charset=utf-8");
+				httpServerResponse.setChunked(true);
+				System.out.println(data.toString());
+				httpServerResponse.write(Json.encodePrettily(data));
+			}
+		}).endHandler(h -> {
+			httpServerResponse.putHeader("content-type", "application/json charset=utf-8");
+			httpServerResponse.end();
+		});
+	});
 	vertx.createHttpServer()
 		.requestHandler(router::accept)
 		.listen(config().getInteger("http.port", 9000),
@@ -43,13 +77,5 @@ public class ApplicationVerticle  extends AbstractVerticle {
 				}
 			}
 		);
-	}
-	
-	public IdName getIdName() {
-		IdName idName = new IdName();
-		idName.setId(1l);
-		idName.setName("Test");
-		idName.setDescription("Test value");
-		return idName;
 	}
 }
