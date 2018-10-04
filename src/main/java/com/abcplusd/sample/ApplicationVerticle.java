@@ -54,6 +54,9 @@ public class ApplicationVerticle  extends AbstractVerticle {
 		zipFlux.subscribe(reactiveReadStream);
 		HttpServerResponse httpServerResponse = routingContext.response();
 		reactiveReadStream.handler(data -> {
+			if (httpServerResponse.closed()) {
+				return;
+			}
 			if(httpServerResponse.writeQueueFull()) {
 				httpServerResponse.drainHandler((s) -> {
 					reactiveReadStream.resume();
