@@ -25,15 +25,16 @@ import java.util.stream.Stream;
 public class ApplicationVerticle  extends AbstractVerticle {
 	private static final Logger LOG = LoggerFactory.getLogger(ApplicationVerticle.class);
 	private JDBCClient jdbcClient;
-@Override
+	
+	@Override
 	public void start(Future<Void> future) {
-	LOG.info("Function begins from here - <{}>","start");
+	LOG.info("<{}> - Function begins from here ","start");
 		Future<Void> steps = prepareDatabase().compose(v -> startServer());
 		steps.setHandler(future.completer());
 	}
 	
 	private Future<Void> startServer() {
-		LOG.info("Function begins from here - <{}>", "startServer");
+		LOG.info("<{}> - Function begins from here", "startServer");
 		Future<Void> future = Future.future();
 		final Router router = Router.router(vertx);
 		
@@ -56,7 +57,7 @@ public class ApplicationVerticle  extends AbstractVerticle {
 	}
 	
 	private Future<Void> prepareDatabase() {
-		LOG.info("Function begins from here - <{}>", "prepareDatabase");
+		LOG.info("<{}> - Function begins from here ", "prepareDatabase");
 		Future<Void> future = Future.future();
 		jdbcClient = JDBCClient.createNonShared(vertx, new JsonObject()
 			.put("url", "jdbc:postgresql://localhost:5432/testdb")
@@ -91,7 +92,7 @@ public class ApplicationVerticle  extends AbstractVerticle {
 	}
 	
 	private void streamData(RoutingContext routingContext) {
-		LOG.info("Function begins from here", "streamData");
+		LOG.info("<{}> - Function begins from here", "streamData");
 		Flux<IdName> stream = Flux.fromStream(Stream.generate(() -> new IdName(System.currentTimeMillis(), new Date())));
 		Flux<Long> durationFlux = Flux.interval(Duration.ofSeconds(1));
 		Flux<IdName> zipFlux = Flux.zip(stream, durationFlux).map(Tuple2::getT1);
