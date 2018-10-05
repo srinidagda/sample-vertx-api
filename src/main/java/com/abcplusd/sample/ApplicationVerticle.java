@@ -7,12 +7,14 @@ import io.vertx.core.Future;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
+import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.jdbc.JDBCClient;
 import io.vertx.ext.reactivestreams.ReactiveReadStream;
 import io.vertx.ext.sql.SQLConnection;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.handler.BodyHandler;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Flux;
@@ -29,18 +31,28 @@ public class ApplicationVerticle  extends AbstractVerticle {
 	@Override
 	public void start(Future<Void> future) {
 	LOG.info("<{}> - Function begins from here ","start");
-		Future<Void> steps = prepareDatabase().compose(v -> startServer());
+		/*Future<Void> steps = prepareDatabase().compose(v -> startServer());*/
+		Future<Void> steps = startServer();
 		steps.setHandler(future.completer());
 	}
 	
 	private Future<Void> startServer() {
 		LOG.info("<{}> - Function begins from here", "startServer");
+		
+		jdbcClient = JDBCClient.createNonShared(vertx, new JsonObject()
+			.put("url", "jdbc:postgresql://localhost:5432/testdb")
+			.put("user", "test_admin")
+			.put("password", "test123")
+			.put("driver_class","org.postgresql.Driver"));
+		
 		Future<Void> future = Future.future();
 		final Router router = Router.router(vertx);
 		
-		router.route(HttpMethod.GET,"/welcome").handler(this::indexHandler);
-		
-		router.route(HttpMethod.GET, "/values").handler(this::streamData);
+		router.get("/welcome").handler(this::indexHandler);
+		router.get("/values").handler(this::streamData);
+		router.post().handler(BodyHandler.create());
+		router.post("/add").handler(this::add);
+		router.get("/fetch").handler(this::getAll);
 		
 		vertx.createHttpServer()
 			.requestHandler(router::accept)
@@ -117,6 +129,41 @@ public class ApplicationVerticle  extends AbstractVerticle {
 		}).endHandler(h -> {
 			httpServerResponse.putHeader("content-type", "application/json charset=utf-8");
 			httpServerResponse.end();
+		});
+	}
+	
+	private void add(RoutingContext routingContext) {
+		LOG.info("{} - Function begins from here", "add");
+		JsonObject jsonObject = routingContext.getBodyAsJson();
+		JsonArray data = new JsonArray().add(jsonObject.getValue("id"))
+			.add(jsonObject.getValue("name"));
+		jdbcClient.updateWithParams(Constants.INSERT_QUERY,data, result -> {
+			if (result.succeeded()) {
+				routingContext.response()
+					.putHeader("content-type", "application/json charset=utf-8")
+					.end(Json.encodePrettily(jsonObject));
+			} else {
+				LOG.info("Insertion failed");
+				routingContext.response()
+					.putHeader("content-type", "application/json charset=utf-8")
+					.end(Json.encodePrettily(jsonObject));
+			}
+		});
+	}
+	
+	private void getAll(RoutingContext routingContext) {
+		LOG.info("{} - Function begins from here", "getAll");
+		jdbcClient.query(Constants.FETCH_QUERY, res -> {
+			if(res.succeeded()) {
+				routingContext.response()
+					.putHeader("content-type", "application/json charset=utf-8")
+					.end(Json.encodePrettily(new JsonObject().put("data", new JsonArray(res.result().getRows()))));
+			} else {
+				LOG.info("Insertion failed");
+				routingContext.response()
+					.putHeader("content-type", "application/json charset=utf-8")
+					.end("No values has been fetched");
+			}
 		});
 	}
 }
