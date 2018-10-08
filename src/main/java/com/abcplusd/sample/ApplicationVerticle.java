@@ -4,7 +4,6 @@ import com.abcplusd.sample.model.IdName;
 import com.abcplusd.sample.util.Constants;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
-import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
